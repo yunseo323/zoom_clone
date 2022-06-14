@@ -1,6 +1,7 @@
 # zoom clone 공부 정리 레포
 
 ## 1. Settings
+use NodeJS, Babel, Express, Pug, MVP CSS
 
 ## 2. WebSockets
 
