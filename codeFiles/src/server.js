@@ -29,11 +29,19 @@ function handleConnection(socket){
 const sockets = [];
 wss.on("connection",(socket)=>{ //연결 이벤트를 들음
     sockets.push(socket);
+    socket["nickname"]="Anonymous"; // 익명으로 초기화
     console.log("Connected to User :)");
     socket.on("close",()=>console.log("Disconnected from the Browser"));
     socket.on("message",(m)=>{
-        sockets.forEach((aS)=>aS.send(m.toString('utf8'))); // 전달받은 메시지를 각 브라우저에게 모두 보냄
-        //socket.send(m.toString('utf8'));
+        const message = JSON.parse(m);
+        switch(message.type){
+            case "new_message":
+                sockets.forEach((aS)=>aS.send(`${socket.nickname}: ${message.payload.toString('utf8')}`)); // 전달받은 메시지를 각 브라우저에게 모두 보냄
+                break;
+            case "nickname":
+                socket["nickname"] = message.payload; //소켓에 새로운 프로퍼티 추가
+                break;
+        }
     })
 }); 
 server.listen(3000,handleListen);

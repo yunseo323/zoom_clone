@@ -118,3 +118,81 @@ wss.on("connection",(socket)=>{ //연결 이벤트를 들음
     socket.send("hello");
 }); 
 ```
+
+## 6. 메시지를 창에 띄우고, 닉네임 생성하기
+
+- 새로운 메시지를 받으면 새로운 li를 생성한다(app.js)
+```JS
+socket.addEventListener("message",(m)=>{ //메시지를 받으면
+    //console.log(`New message: ${m.data}`);
+    const li=document.createElement("li");
+    li.innerText=m.data;
+    messageList.append(li);
+});
+```
+
+- 메시지가 어디에서 왔는지 구분하고 싶고, 닉네임을 입력하는 form을 만들자(home.pug)
+
+=> 여기서 발생한 문제! 서버로 보내는 텍스트는 모두 메시지로 처리됨. 닉네임이라는 것을 인식하지 못함
+
+=> 해결: text를 보내는 것이 아니라, `JSON` 형식을 보내자
+```JS
+function handleNickSubmit(event){
+    event.preventDefault();
+    const input = nickForm.querySelector("input");
+    socket.send(input.value);
+}
+
+//위 코드에서 밑 코드로 변경
+
+function handleNickSubmit(event){
+    event.preventDefault();
+    const input = nickForm.querySelector("input");
+    socket.send({
+        type: "nickname",
+        payload: input.value,
+    });
+}
+```
+
+- `JS object(JSON)`<->`string`? :JSON.stringify(), JSON.parse()
+- 서버->브라우저든, 브라우저->서버든 객체 형식으로 데이터를 보내고, string으로 바꿔야 한다.
+    - makeMessage function 생성
+    - socket.send에서 string을 보낼 수 있기 때문 -> api는 언어에 대한 어떤 판단도 할 수 없음
+    - 서버는 프로그래밍 언어에 제약받지 않아야 하기 때문에 js 객체를 보낼 수 없음
+- 보낸 메시지에서 type(new_message, nickname)을 구분해 동작을 달리 해주자
+- socket은 객체이기 때문에 새로운 key를 넣을 수 있음: `socket["nickname"] = message.payload;`
+    - 닉네임을 정하지 않은 익명의 사람을 위해 `socket["nickname"]="Anonymous"; // 익명으로 초기화`
+```JS
+const sockets = [];
+wss.on("connection",(socket)=>{ //연결 이벤트를 들음
+    sockets.push(socket);
+    socket["nickname"]="Anonymous"; // 익명으로 초기화
+    console.log("Connected to User :)");
+    socket.on("close",()=>console.log("Disconnected from the Browser"));
+    socket.on("message",(m)=>{
+        const message = JSON.parse(m);
+        switch(message.type){
+            case "new_message":
+                sockets.forEach((aS)=>aS.send(`${socket.nickname}: ${message.payload.toString('utf8')}`)); // 전달받은 메시지를 각 브라우저에게 모두 보냄
+            case "nickname":
+                socket["nickname"] = message.payload; //소켓에 새로운 프로퍼티 추가
+        }
+    })
+}); 
+```
+
+## 7. 추가 개선점
+
+- 문제점 1) 브라우저 1에서 보낸 텍스트가 서버로 갔다가, 서버에서 다시 브라우저 1에게 텍스트를 보낸다(불필요한 동작)
+    - 해결: '나'를 제외하고 다른 브라우저에게 보내도록 하자
+- 문제점 2) 서버 -> 브라우저로 전달되는 값은 현재 text이다. 객체를 보내야 하는 일이 추가적으로 있을 수 있다(정확한 동작을 위해)
+    - 서버 -> 브라우저에서 주는 다양한 type의 메시지가 있을 수도 있다
+    - 해결: 서버에서도 JSON.stringify를 이용해서 객체를 문자열로 바꾸고, 프론트 코드에서 다시 parse해줘야 한다
+
+
+=> 이러한 구성이 까다로운 웹소켓을 쉽게 쓸 수 있는 프레임워크가 있다!
+
+- 현재는 주고 받는 모든 입력값이 message로 통일되어서 JSON을 파헤쳐서 각각의 type을 봐야 하지만 이러한 부분이 편리해진다
+- socket.addEventListener로만 처리하고 있음
+- 소켓 배열들을 업데이트 해주고 싶다면?
