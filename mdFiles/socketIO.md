@@ -261,14 +261,109 @@ function handleMessageSubmit(event){
 - 위에 했던 방식과 같이 form과 handleNicknameSubmit을 만들어주자(home.pug & app.js)
 - server.js에서 소켓 객체에다 닉네임을 저장해주자
     - `socket.on("nickname",(nickname)=>socket["nickname"] = nickname)`
-- 닉네임을 저장했다면 
+- 닉네임을 저장했다면 클라이언트에서 작동하는 welcome과 bye 이벤트를 바꿔주자
+```JS
+socket.on("welcome",(user)=>{
+    addMessage(`${user} Joined!`);
+})
 
+socket.on("bye",(left)=>{
+    addMessage(`${left} left :( `);
+})
+
+socket.on("new_message", addMessage);
+```
+
+=> 여기까진 처음 시작 유저 닉네임이 anonymous이다. 처음 시작에 룸 번호와 유저 닉네임을 같이 물어보고 시작하도록 하자(**수정필요**)
 ## 8. 룸 카운트
 
+`Adapter`라는 개념을 이해해보자 
+
+: `Adapter`는 다른 서버들 사이에 실시간 어플리케이션을 동기화 하는 것이다
+- 지금은 서버의 메모리에서 어댑터를 사용하고 있다. 데이터베이스에 아무것도 저장되지 않음
+- 룸, 메시지, 소켓 없어짐 : 재시작할때 다시 처음부터- > 백엔드에 데이터베이스를 가져야 함
+- 모든 클라이언트에 connection을 열어둬야 하고 이 연결은 실시간으로 서버 메모리에 있어야 한다
+-> 브라우저는 서버에 하나의 connection을 열지만, 이 브라우저는 다수이게 되고 : 서버에 많은 connection이 들어옴 (서버가 여러개이게 됨)
+- 다수의 서버는 하나의 메모리풀을 공유해야함
+
+=> 그래서 `Adapter`를 사용한다
+: 모든 클라이언트가 동일한 서버에 연결되는 것이 아니기 때문에 다른 서버에 있는 클라이언트에게 접근하고 싶다면, 중간에 어댑터&데이터베이스를 거쳐야 한다.
+
+로그로 확인해보자
+- `io.sockets.adapter` : 현재 실행된 어댑터는 메모리에 있는 것이다
+- `socket id(sids)`를 가져와서 방들을 보고 이 방들이 어떤 소켓을 위해 만들어졌는지 보고, private 메시지와, public 메시지를 생성해보자
+- 서버에 있는 모든 room들을 살펴보자
+    - 모든 socket은 private id를 가지고 있다
+    - room id 가 sids중 하나라면 private room을 찾은것이고, sids중 하나가 아니라면 public room이라는 것임
+- Map 데이터 구조를 살펴보자 (Map은 일종의 객체)
+    - `set`으로 키-값을 저장하고 `get`으로 안에 값을 출력할 수 있다(쌍이 존재하는지도 확인할 수 있다)
+```JS
+const food = new Map();
+food.set("pizza",10) -> Map(1) {"pizza" => 10}
+food.get("pizza")// 10 
+```
+
+**server.js**
+- 서버에 `function publicRooms`를 작성한다
+```JS
+function publicRooms(){
+    const{
+        sockets:{
+            adapter: {sids,rooms},
+        },
+    } = io;
+    /*
+    //위와 동일한 코드
+    const sids = io.sockets.adapter.sids;
+    const rooms = io.sockets.adapter.rooms;
+    */
+   const publicRooms=[];
+   rooms.forEach((_, key)=>{ //value(_)는 신경쓰지 않음
+       if(sids.get(key)===undefined){
+           publicRooms.push(key);
+       }
+   });
+   return publicRooms;
+}
+```
+
+클라이언트들에게 새로운 방이 만들어졌음을 알리자 
+- `io.sockets.emit`을 사용한다 :  연결되어 있는 모든 소켓에게 알린다 (socket.emit x)
+- `enter_room`, `disconnect` 이벤트에 이를 달아주자 (disconnecting 이벤트는 소켓이 방을 떠나기 직전에 실행된다)
+
+- 클라이언트 `room_change` 이벤트: room 배열들을 받아 h4에 넣어줌
 
 ## 9. 유저 카운트
 
+- `set`은 중복을 허용하지 않으며, `.size`를 이용하면 그 크기를 알 수 있다
+```JS
+//server.js
+socket.on("enter_room",(roomName,done)=>{
+        socket.join(roomName);
+        done();
+        socket.to(roomName).emit("welcome",socket.nickname,countRoom(roomName)); //카운트
+        io.sockets.emit("room_change", publicRooms());
+    });
+    socket.on("disconnecting", ()=>{
+        socket.rooms.forEach(room=>
+            socket.to(room).emit("bye",socket.nickname), countRoom(room)-1); //떠나기 직전이니 -1을 해줌
+    });
+```
+```JS
+//app.js
 
+```
+=> title 새로고침 function 만들기((**수정필요**)
 
+## 10. 추가 기능
+- 소켓을 가져와서 특정한 방에 넣을 수 있음
+- private message 가능
+- 방 (강제)퇴장, 방 바꾸기...
 
+## 11. 백엔드 UI (**보너스 강의 메모하기**)
+
+Admin UI가 있어서 socket, room, client... 볼수 있음
+
+- `$npm i @socket.io/admin-ui`
+- `const {instrument} = require("@socket.io/admin-ui")` server.js에 써주기
 
