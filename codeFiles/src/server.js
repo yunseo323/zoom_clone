@@ -12,3 +12,7 @@ app.get("/*",(req,res)=>res.redirect("/")); // 유저가 어떤 주소로 들어
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer); //socket.io 서버 만들어주기
+
+
+const handleListen=()=> console.log(`Listening on http://localhost:3000`);
+httpServer.listen(3000,handleListen);
