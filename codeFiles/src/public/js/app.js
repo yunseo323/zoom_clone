@@ -24,7 +24,7 @@ async function getCameras(){
     }
 }
 
- async function getMedia(){
+ async function getMedia(deviceId){
      try{
          myStream = await navigator.mediaDevices.getUserMedia({
              audio: true,
@@ -66,8 +66,8 @@ function handleCameraClick(){
     }
 }
 
-function handleCameraChange(){
-    
+async function handleCameraChange(){
+    await getMedia(camerasSelect.value);
 }
 muteBtn.addEventListener("click",handleMuteClick);
 cameraBtn.addEventListener("click",handleCameraClick);
